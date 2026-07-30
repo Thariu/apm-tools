@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { BoardSwitcher } from "@/components/board/BoardSwitcher";
 import { PlanningCanvas } from "@/components/canvas/PlanningCanvas";
+import { useBoardLabels } from "@/hooks/useBoardLabels";
 import {
   parseDailyProgressSlot,
   type DailyProgressSlot,
@@ -31,6 +32,7 @@ export function PlanningShell() {
   const [initialSlot, setInitialSlot] = useState<
     DailyProgressSlot | undefined
   >();
+  const { boardLabelsByBoard, updateBoardLabel } = useBoardLabels();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -68,6 +70,8 @@ export function PlanningShell() {
             onChange={setActiveBoardId}
             activeView={activeView}
             onChangeView={setActiveView}
+            boardLabelsByBoard={boardLabelsByBoard}
+            onUpdateBoardLabel={updateBoardLabel}
           />
         </div>
         {activeView === "planning" && activeSprintLabel ? (
@@ -80,6 +84,7 @@ export function PlanningShell() {
         <PlanningCanvas
           activeBoardId={activeBoardId}
           activeView={activeView}
+          boardLabelsByBoard={boardLabelsByBoard}
           initialDailyAssignee={initialAssignee}
           initialDailySlot={initialSlot}
           onActiveSprintLabelChange={setActiveSprintLabel}

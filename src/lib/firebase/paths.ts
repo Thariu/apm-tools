@@ -12,6 +12,11 @@ export function burndownSprintDoc() {
   return doc(db(), "planning_meta", "burndown_sprint");
 }
 
+/** ボード表示名（都度案件 / 野球 / 提案業務改善 など） */
+export function boardLabelsDoc() {
+  return doc(db(), "planning_meta", "board_labels");
+}
+
 export function boardScheduleDoc(boardId: BoardId) {
   return doc(db(), "boards", boardId, "schedule", "default");
 }

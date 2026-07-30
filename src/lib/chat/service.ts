@@ -32,7 +32,7 @@ async function buildCardForAssignee(params: {
   incompleteOnly?: boolean;
 }) {
   const dateIso = params.dateIso ?? getJstIsoDate();
-  const { tasksByBoard, backlogByBoard } = await loadBoardSnapshot();
+  const { tasksByBoard, backlogByBoard, boardLabels } = await loadBoardSnapshot();
   let tasks = collectDailyTasks({
     tasksByBoard,
     backlogByBoard,
@@ -48,6 +48,7 @@ async function buildCardForAssignee(params: {
     dateIso,
     tasks,
     backlogOptions: flattenBacklogOptions(backlogByBoard),
+    boardLabels,
     notice: params.notice,
   });
 }
@@ -221,7 +222,7 @@ export async function buildDispatchCard(params: {
   skipped: boolean;
 }> {
   const dateIso = getJstIsoDate();
-  const { tasksByBoard, backlogByBoard } = await loadBoardSnapshot();
+  const { tasksByBoard, backlogByBoard, boardLabels } = await loadBoardSnapshot();
   let tasks = collectDailyTasks({
     tasksByBoard,
     backlogByBoard,
@@ -242,6 +243,7 @@ export async function buildDispatchCard(params: {
     dateIso,
     tasks,
     backlogOptions: flattenBacklogOptions(backlogByBoard),
+    boardLabels,
   });
 
   return { message, taskCount: tasks.length, skipped: false };

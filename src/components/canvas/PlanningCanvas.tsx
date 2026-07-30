@@ -72,6 +72,7 @@ function isEditableTargetFocused(): boolean {
 type PlanningCanvasProps = {
   activeBoardId: BoardId;
   activeView: AppView;
+  boardLabelsByBoard: Record<BoardId, string>;
   initialDailyAssignee?: string;
   initialDailySlot?: DailyProgressSlot;
   onActiveSprintLabelChange?: (label: string) => void;
@@ -80,6 +81,7 @@ type PlanningCanvasProps = {
 export function PlanningCanvas({
   activeBoardId,
   activeView,
+  boardLabelsByBoard,
   initialDailyAssignee,
   initialDailySlot,
   onActiveSprintLabelChange,
@@ -696,6 +698,7 @@ export function PlanningCanvas({
             <DailyProgressPanel
               tasks={tasks}
               productBacklogByBoard={productBacklogByBoard}
+              boardLabelsByBoard={boardLabelsByBoard}
               assigneeCandidates={assigneeCandidates}
               initialAssignee={initialDailyAssignee}
               initialSlot={initialDailySlot}

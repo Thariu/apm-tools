@@ -13,7 +13,11 @@ import {
   type DocumentData,
 } from "firebase/firestore";
 import type { FinalizedSprintBurnup } from "../releaseBurnup";
-import { BOARD_ORDER } from "../boardConfig";
+import {
+  BOARD_ORDER,
+  defaultBoardLabels,
+  parseBoardLabelsDoc,
+} from "../boardConfig";
 import type { BurndownSprintState } from "../burndownSprintStorage";
 import type { ReleaseBurnupBoardState } from "../releaseBurnupStorage";
 import type {
@@ -46,6 +50,7 @@ import {
   appMetaDoc,
   assigneeColorDoc,
   assigneeDirectoryDoc,
+  boardLabelsDoc,
   boardReleaseBurnupDoc,
   boardScheduleDoc,
   burndownSnapshotDoc,
@@ -410,6 +415,22 @@ export async function patchSprintGoal(
   sprintGoal: string,
 ): Promise<void> {
   await setDoc(boardScheduleDoc(boardId), { sprintGoal }, { merge: true });
+}
+
+export async function fetchBoardLabels(): Promise<Record<BoardId, string>> {
+  const snap = await getDoc(boardLabelsDoc());
+  return parseBoardLabelsDoc(
+    snap.exists() ? (snap.data() as Record<string, unknown>) : null,
+  );
+}
+
+export async function patchBoardLabel(
+  boardId: BoardId,
+  label: string,
+): Promise<void> {
+  const trimmed = label.trim();
+  const value = trimmed || defaultBoardLabels()[boardId];
+  await setDoc(boardLabelsDoc(), { [boardId]: value }, { merge: true });
 }
 
 export async function setBurndownSprint(

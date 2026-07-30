@@ -59,6 +59,38 @@ export const BOARD_CONFIGS: Record<BoardId, BoardConfig> = {
   },
 };
 
+/** コード上のデフォルト表示名（Firestore 未設定時のフォールバック） */
+export function defaultBoardLabels(): Record<BoardId, string> {
+  return Object.fromEntries(
+    BOARD_ORDER.map((id) => [id, BOARD_CONFIGS[id].label]),
+  ) as Record<BoardId, string>;
+}
+
+/** カスタム表示名があればそれを、なければデフォルトを返す */
+export function resolveBoardLabel(
+  boardId: BoardId,
+  labelsByBoard?: Partial<Record<BoardId, string>> | null,
+): string {
+  const custom = labelsByBoard?.[boardId]?.trim();
+  if (custom) return custom;
+  return BOARD_CONFIGS[boardId]?.label ?? boardId;
+}
+
+/** Firestore planning_meta/board_labels のドキュメントを正規化 */
+export function parseBoardLabelsDoc(
+  raw: Record<string, unknown> | undefined | null,
+): Record<BoardId, string> {
+  const out = defaultBoardLabels();
+  if (!raw) return out;
+  for (const boardId of BOARD_ORDER) {
+    const value = raw[boardId];
+    if (typeof value === "string" && value.trim()) {
+      out[boardId] = value.trim();
+    }
+  }
+  return out;
+}
+
 const BASEBALL_ISSUE_TYPES = new Set(["野球", "プロ野球"]);
 const AD_HOC_ISSUE_TYPES = new Set(["公式", "promo"]);
 

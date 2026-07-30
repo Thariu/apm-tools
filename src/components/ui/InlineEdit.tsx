@@ -59,7 +59,7 @@ export function InlineEdit({
 
   if (editing) {
     const baseClassName = [
-      "w-full rounded border border-blue-400 bg-white px-1 py-0.5 text-inherit text-gray-900 outline-none ring-1 ring-blue-200",
+      "w-full rounded border border-blue-400 bg-white px-1 py-0.5 text-gray-900 outline-none ring-1 ring-blue-200",
       INPUT_PLACEHOLDER_CLASS,
       inputClassName,
     ].join(" ");

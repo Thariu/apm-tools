@@ -1,4 +1,4 @@
-import { BOARD_CONFIGS } from "@/lib/boardConfig";
+import { resolveBoardLabel } from "@/lib/boardConfig";
 import type { BoardId, ProductBacklogItem } from "@/lib/types";
 import type { ChatSlot } from "./config";
 import type { DailyTaskView } from "./dailyTasks";
@@ -7,6 +7,7 @@ import { laneToProgressHint, PROGRESS_OPTIONS } from "./progress";
 
 type ChatWidget = Record<string, unknown>;
 type ChatSection = { header?: string; widgets: ChatWidget[] };
+type BoardLabels = Partial<Record<BoardId, string>>;
 
 function actionButton(
   text: string,
@@ -58,8 +59,9 @@ function taskSection(
   view: DailyTaskView,
   withProgress: boolean,
   slot: ChatSlot,
+  boardLabels?: BoardLabels,
 ): ChatSection {
-  const boardLabel = BOARD_CONFIGS[view.boardId]?.label ?? view.boardId;
+  const boardLabel = resolveBoardLabel(view.boardId, boardLabels);
   const status = laneToProgressHint(view.task.lane);
   const widgets: ChatWidget[] = [
     {
@@ -84,12 +86,13 @@ function escapeHtml(text: string): string {
 function declarationSections(
   slot: ChatSlot,
   backlogOptions: { boardId: BoardId; item: ProductBacklogItem }[],
+  boardLabels?: BoardLabels,
 ): ChatSection[] {
   const sections: ChatSection[] = [];
 
   if (slot === "evening") {
     const selectionItems = backlogOptions.slice(0, 40).map(({ boardId, item }) => ({
-      text: `${BOARD_CONFIGS[boardId]?.label ?? boardId}: ${item.title || "(無題)"}`.slice(
+      text: `${resolveBoardLabel(boardId, boardLabels)}: ${item.title || "(無題)"}`.slice(
         0,
         80,
       ),
@@ -152,9 +155,18 @@ export function buildProgressCard(params: {
   dateIso: string;
   tasks: DailyTaskView[];
   backlogOptions: { boardId: BoardId; item: ProductBacklogItem }[];
+  boardLabels?: BoardLabels;
   notice?: string;
 }): { text?: string; cardsV2: unknown[] } {
-  const { slot, assigneeName, dateIso, tasks, backlogOptions, notice } = params;
+  const {
+    slot,
+    assigneeName,
+    dateIso,
+    tasks,
+    backlogOptions,
+    boardLabels,
+    notice,
+  } = params;
   const slotLabel = slot === "midday" ? "途中経過" : "夕";
   const withProgress = true;
 
@@ -178,11 +190,11 @@ export function buildProgressCard(params: {
     });
   } else {
     for (const view of tasks) {
-      sections.push(taskSection(view, withProgress, slot));
+      sections.push(taskSection(view, withProgress, slot, boardLabels));
     }
   }
 
-  sections.push(...declarationSections(slot, backlogOptions));
+  sections.push(...declarationSections(slot, backlogOptions, boardLabels));
 
   sections.push({
     widgets: [

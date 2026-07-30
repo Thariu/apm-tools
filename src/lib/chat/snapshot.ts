@@ -1,6 +1,7 @@
 import {
   fetchAllProductBacklog,
   fetchAllTasks,
+  fetchBoardLabels,
 } from "@/lib/firebase/planningRepository";
 import { BOARD_ORDER } from "@/lib/boardConfig";
 import type { BoardId, ProductBacklogItem, Task } from "@/lib/types";
@@ -8,12 +9,14 @@ import type { BoardId, ProductBacklogItem, Task } from "@/lib/types";
 export async function loadBoardSnapshot(): Promise<{
   tasksByBoard: Record<BoardId, Task[]>;
   backlogByBoard: Record<BoardId, ProductBacklogItem[]>;
+  boardLabels: Record<BoardId, string>;
 }> {
-  const [tasksByBoard, backlogByBoard] = await Promise.all([
+  const [tasksByBoard, backlogByBoard, boardLabels] = await Promise.all([
     fetchAllTasks(),
     fetchAllProductBacklog(),
+    fetchBoardLabels(),
   ]);
-  return { tasksByBoard, backlogByBoard };
+  return { tasksByBoard, backlogByBoard, boardLabels };
 }
 
 export function flattenBacklogOptions(

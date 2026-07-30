@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { BOARD_CONFIGS, BOARD_ORDER } from "@/lib/boardConfig";
+import { BOARD_ORDER, resolveBoardLabel } from "@/lib/boardConfig";
 import {
   addNewBacklogWithTask,
   addTaskToExistingBacklog,
@@ -50,6 +50,7 @@ function formatCompletedAtJst(iso: string): string {
 type DailyProgressPanelProps = {
   tasks: Task[];
   productBacklogByBoard: Record<BoardId, ProductBacklogItem[]>;
+  boardLabelsByBoard: Record<BoardId, string>;
   assigneeCandidates: string[];
   initialAssignee?: string;
   initialSlot?: DailyProgressSlot;
@@ -76,6 +77,7 @@ function syncSlotToUrl(slot: DailyProgressSlot) {
 export function DailyProgressPanel({
   tasks,
   productBacklogByBoard,
+  boardLabelsByBoard,
   assigneeCandidates,
   initialAssignee,
   initialSlot,
@@ -169,10 +171,10 @@ export function DailyProgressPanel({
   const backlogOptionsByBoard = useMemo(() => {
     return BOARD_ORDER.map((boardId) => ({
       boardId,
-      label: BOARD_CONFIGS[boardId].label,
+      label: resolveBoardLabel(boardId, boardLabelsByBoard),
       options: backlogOptions.filter((o) => o.boardId === boardId),
     })).filter((group) => group.options.length > 0);
-  }, [backlogOptions]);
+  }, [backlogOptions, boardLabelsByBoard]);
 
   useEffect(() => {
     if (
@@ -247,7 +249,7 @@ export function DailyProgressPanel({
       }
       setNewBacklogTitle("");
       setNewTaskTitle("");
-      const boardLabel = BOARD_CONFIGS[newBoardId]?.label ?? newBoardId;
+      const boardLabel = resolveBoardLabel(newBoardId, boardLabelsByBoard);
       setNotice(
         `新規 Backlog とタスクを追加しました（${boardLabel}）: ${result.task.title}`,
       );
@@ -469,7 +471,7 @@ export function DailyProgressPanel({
                     {view.task.title || "(無題)"}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {view.backlogTitle} · {BOARD_CONFIGS[view.boardId]?.label}
+                    {view.backlogTitle} · {resolveBoardLabel(view.boardId, boardLabelsByBoard)}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -558,7 +560,7 @@ export function DailyProgressPanel({
               >
                 {BOARD_ORDER.map((boardId) => (
                   <option key={boardId} value={boardId}>
-                    {BOARD_CONFIGS[boardId].label}
+                    {resolveBoardLabel(boardId, boardLabelsByBoard)}
                   </option>
                 ))}
               </select>
