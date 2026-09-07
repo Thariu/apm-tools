@@ -2,7 +2,7 @@
 
 import { onSnapshot, orderBy, query } from "firebase/firestore";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BOARD_ORDER } from "@/lib/boardConfig";
+import { BOARD_ORDER, activeBoardIdsFromRegistry, parseBoardsRegistryDoc } from "@/lib/boardConfig";
 import { buildDefaultBusinessDayIsos } from "@/lib/burndown";
 import type { BurndownSprintState } from "@/lib/burndownSprintStorage";
 import { migrateRetroSprintKey } from "@/lib/firebase/retroSprintKeyMigration";
@@ -10,6 +10,7 @@ import { isFirebaseConfigured } from "@/lib/firebase/config";
 import {
   docToProductBacklog,
   docToTask,
+  emptySchedule,
   finalizedSprintFromFirestore,
   parseBoardScheduleDoc,
   parseBurndownSnapshots,
@@ -18,6 +19,7 @@ import {
 import {
   boardReleaseBurnupDoc,
   boardScheduleDoc,
+  boardsRegistryDoc,
   assigneesColorsCollection,
   assigneesDirectoryCollection,
   goalTextDirectoryCollection,
@@ -47,6 +49,7 @@ import {
   deleteRetroSession as deleteRetroSessionDoc,
   pruneArchivedRetroSessions,
   deleteTaskRecord,
+  ensureBoardsRegistry,
   patchProductBacklogItem,
   patchScheduleDay,
   patchSprintGoal,
@@ -225,11 +228,7 @@ function mergeRetroSessionInState(
 }
 
 function initialReleaseBurnupByBoard(): ReleaseBurnupByBoard {
-  return {
-    baseball_board: defaultReleaseBurnupBoardState(),
-    proposal_improvement: defaultReleaseBurnupBoardState(),
-    ad_hoc: defaultReleaseBurnupBoardState(),
-  };
+  return {};
 }
 
 function initialSchedules(): Record<BoardId, SprintSchedule> {
@@ -249,13 +248,12 @@ export function usePlanningData() {
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [activeBoardIds, setActiveBoardIds] = useState<BoardId[]>(() => [
+    ...BOARD_ORDER,
+  ]);
   const [productBacklogByBoard, setProductBacklogByBoard] = useState<
     Record<BoardId, ProductBacklogItem[]>
-  >({
-    baseball_board: [],
-    proposal_improvement: [],
-    ad_hoc: [],
-  });
+  >({});
   const productBacklogByBoardRef = useRef(productBacklogByBoard);
   const [schedulesByBoard, setSchedulesByBoard] =
     useState<Record<BoardId, SprintSchedule>>(initialSchedules);
@@ -278,19 +276,11 @@ export function usePlanningData() {
 
   const [retroDraftByBoard, setRetroDraftByBoard] = useState<
     Record<BoardId, Record<string, RetroDraft | null>>
-  >({
-    baseball_board: {},
-    proposal_improvement: {},
-    ad_hoc: {},
-  });
+  >({});
 
   const [retroDraftLoadedByBoard, setRetroDraftLoadedByBoard] = useState<
     Record<BoardId, Record<string, boolean>>
-  >({
-    baseball_board: {},
-    proposal_improvement: {},
-    ad_hoc: {},
-  });
+  >({});
 
   const [retroFacilitationBySprint, setRetroFacilitationBySprint] = useState<
     Record<string, RetroFacilitation | null>
@@ -445,104 +435,22 @@ export function usePlanningData() {
           }),
         );
 
-        for (const boardId of BOARD_ORDER) {
-          subscribe(
-            onSnapshot(
-              query(
-                productBacklogCollection(boardId),
-                orderBy("sortOrder"),
+        const registry = await ensureBoardsRegistry();
+        if (cancelled) return;
+        setActiveBoardIds(activeBoardIdsFromRegistry(registry));
+
+        subscribe(
+          onSnapshot(boardsRegistryDoc(), (snap) => {
+            if (!snap.exists()) return;
+            setActiveBoardIds(
+              activeBoardIdsFromRegistry(
+                parseBoardsRegistryDoc(
+                  snap.data() as Record<string, unknown>,
+                ),
               ),
-              (snap) => {
-                const items = snap.docs.map((d) =>
-                  docToProductBacklog(d.data() as ProductBacklogDoc),
-                );
-                setProductBacklogByBoard((prev) => ({
-                  ...prev,
-                  [boardId]: items,
-                }));
-              },
-            ),
-          );
-
-          subscribe(
-            onSnapshot(tasksCollection(boardId), (snap) => {
-              const boardTasks = snap.docs.map((d) =>
-                docToTask(d.data() as Task),
-              );
-              setTasks((prev) => mergeBoardTasks(prev, boardId, boardTasks));
-            }),
-          );
-
-          subscribe(
-            onSnapshot(boardScheduleDoc(boardId), (snap) => {
-              const fallback = initialSchedules()[boardId];
-              const { schedule, sprintGoal } = snap.exists()
-                ? parseBoardScheduleDoc(
-                    snap.data() as Record<string, unknown>,
-                    fallback,
-                  )
-                : { schedule: fallback, sprintGoal: "" };
-              setSchedulesByBoard((prev) => ({
-                ...prev,
-                [boardId]: schedule,
-              }));
-              setSprintGoalsByBoard((prev) => ({
-                ...prev,
-                [boardId]: sprintGoal,
-              }));
-            }),
-          );
-
-          subscribe(
-            onSnapshot(burndownSnapshotsCollection(boardId), (snap) => {
-              const byDay = parseBurndownSnapshots(
-                snap.docs.map((d) => ({
-                  id: d.id,
-                  wip: (d.data().wip as number) ?? 0,
-                })),
-              );
-              setBurndownSnapshotsByBoard((prev) => ({
-                ...prev,
-                [boardId]: byDay,
-              }));
-            }),
-          );
-
-          subscribe(
-            onSnapshot(boardReleaseBurnupDoc(boardId), (snap) => {
-              const releaseStartTuesdayIso = snap.exists()
-                ? (snap.data().releaseStartTuesdayIso as string)
-                : defaultReleaseBurnupBoardState().releaseStartTuesdayIso;
-              setReleaseBurnupByBoard((prev) => ({
-                ...prev,
-                [boardId]: {
-                  ...prev[boardId],
-                  releaseStartTuesdayIso,
-                },
-              }));
-            }),
-          );
-
-          subscribe(
-            onSnapshot(finalizedSprintsCollection(boardId), (snap) => {
-              const raw = snap.docs.map((d) =>
-                finalizedSprintFromFirestore(d.data() as FinalizedSprintBurnup),
-              );
-              const finalizedSprints = trimFinalizedSprints(raw);
-              setReleaseBurnupByBoard((prev) => {
-                const board =
-                  prev[boardId] ?? defaultReleaseBurnupBoardState();
-                const nextBoard = { ...board, finalizedSprints };
-                if (raw.length > finalizedSprints.length) {
-                  void saveReleaseBurnupBoardState(boardId, nextBoard).catch(
-                    console.error,
-                  );
-                }
-                return { ...prev, [boardId]: nextBoard };
-              });
-            }),
-          );
-        }
+            );
+          }),
+        );
 
         if (!cancelled) setStatus("ready");
       } catch (err) {
@@ -562,6 +470,124 @@ export function usePlanningData() {
       if (wipDebounceRef.current) clearTimeout(wipDebounceRef.current);
     };
   }, []);
+
+  const activeBoardIdsKey = activeBoardIds.join("|");
+
+  useEffect(() => {
+    if (!isFirebaseConfigured()) return;
+    if (status !== "ready") return;
+
+    const unsubs: (() => void)[] = [];
+    const subscribe = (unsub: () => void) => {
+      unsubs.push(unsub);
+    };
+
+    for (const boardId of activeBoardIds) {
+      subscribe(
+        onSnapshot(
+          query(productBacklogCollection(boardId), orderBy("sortOrder")),
+          (snap) => {
+            const items = snap.docs.map((d) =>
+              docToProductBacklog(d.data() as ProductBacklogDoc),
+            );
+            setProductBacklogByBoard((prev) => ({
+              ...prev,
+              [boardId]: items,
+            }));
+          },
+        ),
+      );
+
+      subscribe(
+        onSnapshot(tasksCollection(boardId), (snap) => {
+          const boardTasks = snap.docs.map((d) =>
+            docToTask(d.data() as Task),
+          );
+          setTasks((prev) => mergeBoardTasks(prev, boardId, boardTasks));
+        }),
+      );
+
+      subscribe(
+        onSnapshot(boardScheduleDoc(boardId), (snap) => {
+          const fallback = initialSchedules()[boardId] ?? emptySchedule();
+          const { schedule, sprintGoal } = snap.exists()
+            ? parseBoardScheduleDoc(
+                snap.data() as Record<string, unknown>,
+                fallback,
+              )
+            : { schedule: fallback, sprintGoal: "" };
+          setSchedulesByBoard((prev) => ({
+            ...prev,
+            [boardId]: schedule,
+          }));
+          setSprintGoalsByBoard((prev) => ({
+            ...prev,
+            [boardId]: sprintGoal,
+          }));
+        }),
+      );
+
+      subscribe(
+        onSnapshot(burndownSnapshotsCollection(boardId), (snap) => {
+          const byDay = parseBurndownSnapshots(
+            snap.docs.map((d) => ({
+              id: d.id,
+              wip: (d.data().wip as number) ?? 0,
+            })),
+          );
+          setBurndownSnapshotsByBoard((prev) => ({
+            ...prev,
+            [boardId]: byDay,
+          }));
+        }),
+      );
+
+      subscribe(
+        onSnapshot(boardReleaseBurnupDoc(boardId), (snap) => {
+          const releaseStartTuesdayIso = snap.exists()
+            ? (snap.data().releaseStartTuesdayIso as string)
+            : defaultReleaseBurnupBoardState().releaseStartTuesdayIso;
+          setReleaseBurnupByBoard((prev) => ({
+            ...prev,
+            [boardId]: {
+              ...(prev[boardId] ?? defaultReleaseBurnupBoardState()),
+              releaseStartTuesdayIso,
+            },
+          }));
+        }),
+      );
+
+      subscribe(
+        onSnapshot(finalizedSprintsCollection(boardId), (snap) => {
+          const raw = snap.docs.map((d) =>
+            finalizedSprintFromFirestore(d.data() as FinalizedSprintBurnup),
+          );
+          const finalizedSprints = trimFinalizedSprints(raw);
+          setReleaseBurnupByBoard((prev) => {
+            const board = prev[boardId] ?? defaultReleaseBurnupBoardState();
+            const nextBoard = { ...board, finalizedSprints };
+            if (raw.length > finalizedSprints.length) {
+              void saveReleaseBurnupBoardState(boardId, nextBoard).catch(
+                console.error,
+              );
+            }
+            return { ...prev, [boardId]: nextBoard };
+          });
+        }),
+      );
+    }
+
+    // アーカイブされたボードのタスクをローカル state から除外
+    setTasks((prev) =>
+      prev.filter((t) => activeBoardIds.includes(t.boardId)),
+    );
+
+    return () => {
+      unsubs.forEach((u) => u());
+    };
+    // activeBoardIdsKey で内容変化を検知
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, activeBoardIdsKey]);
 
   useEffect(() => {
     if (!isFirebaseConfigured()) return;
@@ -780,7 +806,7 @@ export function usePlanningData() {
     for (const sprintKey of retroFacilitationSprintKeys) {
       setRetroDraftLoadedByBoard((prev) => {
         const next = { ...prev };
-        for (const boardId of BOARD_ORDER) {
+        for (const boardId of activeBoardIds) {
           next[boardId] = { ...next[boardId], [sprintKey]: false };
         }
         return next;
@@ -812,7 +838,7 @@ export function usePlanningData() {
       );
       unsubs.push(unsubFacilitation);
 
-      for (const boardId of BOARD_ORDER) {
+      for (const boardId of activeBoardIds) {
         const unsubDraft = onSnapshot(
           retroDraftDoc(boardId, sprintKey),
           (snap) => {
@@ -840,7 +866,7 @@ export function usePlanningData() {
       cancelled = true;
       unsubs.forEach((u) => u());
     };
-  }, [retroFacilitationSprintKeys, status]);
+  }, [retroFacilitationSprintKeys, status, activeBoardIdsKey]);
 
   useEffect(() => {
     if (!isFirebaseConfigured()) return;
@@ -1847,6 +1873,7 @@ export function usePlanningData() {
   return {
     status,
     errorMessage,
+    activeBoardIds,
     tasks,
     productBacklogByBoard,
     schedulesByBoard,

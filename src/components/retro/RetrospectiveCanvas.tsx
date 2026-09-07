@@ -22,7 +22,6 @@ import {
   getFallbackAssigneeColorId,
   type AssigneeColorId,
 } from "@/lib/assigneeColors";
-import { BOARD_ORDER } from "@/lib/boardConfig";
 import {
   buildDefaultBusinessDayIsos,
   formatBurndownDayLabel,
@@ -33,8 +32,7 @@ import {
   isRetroSessionArchived,
   resolveRetroBusinessDayIsos,
 } from "@/lib/retroArchive";
-import {
-  mergeNotesById,
+import {  mergeNotesById,
   patchNoteInList,
   removeNoteFromList,
 } from "@/lib/retroNotesMerge";
@@ -2692,6 +2690,7 @@ export function RetrospectiveCanvas({
     deleteRetroSession,
     safeSwitchRetroFramework,
     burndownSprint,
+    activeBoardIds,
   } = usePlanningData();
 
   const session = getRetroSession(boardId, sprintKey);
@@ -2725,7 +2724,7 @@ export function RetrospectiveCanvas({
 
   const sessionLoaded = isRetroSessionLoaded(boardId, sprintKey);
   const facilitationLoaded = isRetroFacilitationLoaded(sprintKey);
-  const allBoardDraftsLoaded = BOARD_ORDER.every((id) =>
+  const allBoardDraftsLoaded = activeBoardIds.every((id) =>
     isRetroDraftLoaded(id, sprintKey),
   );
 
@@ -2792,7 +2791,7 @@ export function RetrospectiveCanvas({
 
     let bestUpdatedAt = "";
     let bestParticipants: string[] | null = null;
-    for (const id of BOARD_ORDER) {
+    for (const id of activeBoardIds) {
       const d = getRetroDraft(id, sprintKey);
       if (!d?.participants?.length) continue;
       if (!bestParticipants || d.updatedAt > bestUpdatedAt) {

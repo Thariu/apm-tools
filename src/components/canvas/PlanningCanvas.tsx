@@ -32,7 +32,6 @@ import { resolveLaneContainer } from "@/lib/taskOrder";
 import { computeGroupDragPreview } from "@/lib/taskOrder";
 import { parseSwimlaneDragId } from "@/lib/swimlaneDnD";
 import { buildStandardBusinessDayIsos } from "@/lib/businessDays";
-import { BOARD_ORDER } from "@/lib/boardConfig";
 import {
   buildBurndownData,
   countTodoDoing,
@@ -43,6 +42,7 @@ import {
 } from "@/lib/burndown";
 import { getJstIsoDate } from "@/lib/jstDate";
 import type { BurndownSprintState } from "@/lib/burndownSprintStorage";
+import { defaultReleaseBurnupBoardState } from "@/lib/planningDefaults";
 import {
   buildReleaseBurnupChartData,
   computeCompletedBacklogPoints,
@@ -72,6 +72,7 @@ function isEditableTargetFocused(): boolean {
 type PlanningCanvasProps = {
   activeBoardId: BoardId;
   activeView: AppView;
+  activeBoardIds: BoardId[];
   boardLabelsByBoard: Record<BoardId, string>;
   initialDailyAssignee?: string;
   initialDailySlot?: DailyProgressSlot;
@@ -81,6 +82,7 @@ type PlanningCanvasProps = {
 export function PlanningCanvas({
   activeBoardId,
   activeView,
+  activeBoardIds,
   boardLabelsByBoard,
   initialDailyAssignee,
   initialDailySlot,
@@ -152,7 +154,13 @@ export function PlanningCanvas({
     () => productBacklogByBoard[activeBoardId] ?? [],
     [productBacklogByBoard, activeBoardId],
   );
-  const schedule = schedulesByBoard[activeBoardId];
+  const schedule = schedulesByBoard[activeBoardId] ?? {
+    tuesday: "",
+    wednesday: "",
+    thursday: "",
+    friday: "",
+    monday: "",
+  };
 
   const boardTasks = useMemo(
     () => tasks.filter((t) => t.boardId === activeBoardId),
@@ -316,7 +324,8 @@ export function PlanningCanvas({
 
   const currentWip = countTodoDoing(boardTasks);
 
-  const releaseBurnupState = releaseBurnupByBoard[activeBoardId];
+  const releaseBurnupState =
+    releaseBurnupByBoard[activeBoardId] ?? defaultReleaseBurnupBoardState();
 
   const sprintToFinalizeTuesdayIso = getPreviousSprintTuesdayIso(new Date());
   const sprintToFinalizeIndex = getSprintIndex(
@@ -356,7 +365,7 @@ export function PlanningCanvas({
     const points = computeCompletedBacklogPoints(productBacklog, boardTasks);
 
     const finalizedByBoard = Object.fromEntries(
-      BOARD_ORDER.map((boardId) => [
+      activeBoardIds.map((boardId) => [
         boardId,
         releaseBurnupByBoard[boardId]?.finalizedSprints ?? [],
       ]),
@@ -368,6 +377,7 @@ export function PlanningCanvas({
         finalizedByBoard,
         activeBoardId,
         sprintToFinalizeTuesdayIso,
+        activeBoardIds,
       );
 
     const burndownAdvanceNote = isSprintAlreadyFinalized
@@ -382,7 +392,8 @@ export function PlanningCanvas({
       sprintToFinalizeTuesdayIso,
     );
 
-    const board = releaseBurnupByBoard[activeBoardId];
+    const board =
+      releaseBurnupByBoard[activeBoardId] ?? defaultReleaseBurnupBoardState();
     const withoutDuplicate = board.finalizedSprints.filter(
       (s) => s.sprintTuesdayIso !== sprintToFinalizeTuesdayIso,
     );
@@ -409,6 +420,7 @@ export function PlanningCanvas({
     }
   }, [
     activeBoardId,
+    activeBoardIds,
     boardTasks,
     businessDayIsos,
     isSprintAlreadyFinalized,
@@ -698,6 +710,7 @@ export function PlanningCanvas({
             <DailyProgressPanel
               tasks={tasks}
               productBacklogByBoard={productBacklogByBoard}
+              activeBoardIds={activeBoardIds}
               boardLabelsByBoard={boardLabelsByBoard}
               assigneeCandidates={assigneeCandidates}
               initialAssignee={initialDailyAssignee}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { BoardSwitcher } from "@/components/board/BoardSwitcher";
 import { PlanningCanvas } from "@/components/canvas/PlanningCanvas";
-import { useBoardLabels } from "@/hooks/useBoardLabels";
+import { useBoardsRegistry } from "@/hooks/useBoardsRegistry";
 import {
   parseDailyProgressSlot,
   type DailyProgressSlot,
@@ -23,6 +23,18 @@ function parseViewParam(raw: string | null): AppView | null {
 }
 
 export function PlanningShell() {
+  const {
+    activeBoardIds,
+    archivedEntries,
+    boardLabelsByBoard,
+    updateBoardLabel,
+    addBoard,
+    archiveBoard,
+    restoreBoard,
+    permanentlyDeleteBoard,
+    reorderBoards,
+  } = useBoardsRegistry();
+
   const [activeBoardId, setActiveBoardId] = useState<BoardId>("ad_hoc");
   const [activeView, setActiveView] = useState<AppView>("planning");
   const [activeSprintLabel, setActiveSprintLabel] = useState<string | null>(
@@ -32,7 +44,13 @@ export function PlanningShell() {
   const [initialSlot, setInitialSlot] = useState<
     DailyProgressSlot | undefined
   >();
-  const { boardLabelsByBoard, updateBoardLabel } = useBoardLabels();
+
+  useEffect(() => {
+    if (activeBoardIds.length === 0) return;
+    if (!activeBoardIds.includes(activeBoardId)) {
+      setActiveBoardId(activeBoardIds[0]);
+    }
+  }, [activeBoardIds, activeBoardId]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -70,8 +88,15 @@ export function PlanningShell() {
             onChange={setActiveBoardId}
             activeView={activeView}
             onChangeView={setActiveView}
+            activeBoardIds={activeBoardIds}
+            archivedEntries={archivedEntries}
             boardLabelsByBoard={boardLabelsByBoard}
             onUpdateBoardLabel={updateBoardLabel}
+            onAddBoard={addBoard}
+            onArchiveBoard={archiveBoard}
+            onRestoreBoard={restoreBoard}
+            onPermanentlyDeleteBoard={permanentlyDeleteBoard}
+            onReorderBoards={reorderBoards}
           />
         </div>
         {activeView === "planning" && activeSprintLabel ? (
@@ -84,6 +109,7 @@ export function PlanningShell() {
         <PlanningCanvas
           activeBoardId={activeBoardId}
           activeView={activeView}
+          activeBoardIds={activeBoardIds}
           boardLabelsByBoard={boardLabelsByBoard}
           initialDailyAssignee={initialAssignee}
           initialDailySlot={initialSlot}

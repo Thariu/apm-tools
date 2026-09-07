@@ -1,4 +1,17 @@
-export type BoardId = "baseball_board" | "proposal_improvement" | "ad_hoc";
+/** ボード（カテゴリ）ID。レガシー固定3件に加え、動的追加分も含む */
+export type BoardId = string;
+
+/** Firestore planning_meta/boards_registry の1要素 */
+export type BoardRegistryEntry = {
+  id: BoardId;
+  label: string;
+  /** 表示順（昇順）。追加時は末尾 */
+  order: number;
+  /** タブ強調色用のキー（レガシー or palette index） */
+  accentKey?: string;
+  /** 設定時はアーカイブ済み（UI 非表示・復元可能） */
+  archivedAt?: string;
+};
 
 export type AppView = "planning" | "memberTasks" | "retro" | "dailyProgress";
 

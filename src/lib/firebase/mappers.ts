@@ -80,7 +80,15 @@ export function docToProductBacklog(doc: ProductBacklogDoc): ProductBacklogItem 
   return item;
 }
 
-export function taskToFirestore(task: Task): Record<string, unknown> {
+/**
+ * @param options.clearMissingProgress - true（既定）のとき、% を持たないタスクは
+ *   `deleteField()` を返す。`setDoc(..., { merge: true })` 向け。
+ *   seed など merge なしの `set` では false にし、フィールドを省略する。
+ */
+export function taskToFirestore(
+  task: Task,
+  options?: { clearMissingProgress?: boolean },
+): Record<string, unknown> {
   const data = stripUndefined({
     ...task,
     assignees: task.assignees ?? [],
@@ -92,6 +100,8 @@ export function taskToFirestore(task: Task): Record<string, unknown> {
     task.lane === "doing" && isStoredProgressPercent(task.progressPercent);
   if (storePercent) {
     data.progressPercent = task.progressPercent;
+  } else if (options?.clearMissingProgress === false) {
+    delete data.progressPercent;
   } else {
     // merge でも % 表記を確実に消す
     data.progressPercent = deleteField();

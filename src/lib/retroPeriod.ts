@@ -9,7 +9,7 @@ import type { BurndownSprintState } from "./burndownSprintStorage";
 import { isRetroSessionArchived } from "./retroArchive";
 import { getPreviousSprintTuesdayIso } from "./releaseBurnup";
 import type { ReleaseBurnupByBoard } from "./releaseBurnupStorage";
-import type { RetroSession } from "./types";
+import type { BoardId, RetroSession } from "./types";
 
 /** バーンダウン（計画）上の現在スプリント週（火曜 ISO） */
 export function getPlanningSprintKey(
@@ -21,12 +21,13 @@ export function getPlanningSprintKey(
   );
 }
 
-/** 全ボードで指定スプリント週の実績が確定済みか */
+/** 指定ボード群でスプリント週の実績が確定済みか */
 export function areAllBoardsFinalizedForSprint(
   releaseBurnupByBoard: ReleaseBurnupByBoard,
   sprintTuesdayIso: string,
+  boardIds: BoardId[] = BOARD_ORDER,
 ): boolean {
-  return BOARD_ORDER.every((boardId) =>
+  return boardIds.every((boardId) =>
     (releaseBurnupByBoard[boardId]?.finalizedSprints ?? []).some(
       (s) => s.sprintTuesdayIso === sprintTuesdayIso,
     ),

@@ -29,8 +29,4 @@ export function defaultReleaseBurnupBoardState(): ReleaseBurnupBoardState {
 }
 
 export const EMPTY_BURNDOWN_SNAPSHOTS: Record<BoardId, Record<string, number>> =
-  {
-    baseball_board: {},
-    proposal_improvement: {},
-    ad_hoc: {},
-  };
+  {};

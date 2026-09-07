@@ -1,4 +1,4 @@
-import { BOARD_CONFIGS, BOARD_ORDER } from "@/lib/boardConfig";
+import { getBoardConfig } from "@/lib/boardConfig";
 import {
   fetchAllProductBacklog,
   patchTask,
@@ -76,7 +76,7 @@ export async function addNewBacklogWithTask(params: {
   if (!taskTitle) return { error: "タスク名を入力してください。" };
 
   const boardId = params.boardId ?? "ad_hoc";
-  if (!BOARD_ORDER.includes(boardId)) {
+  if (!boardId.trim()) {
     return { error: "ボード ID が不正です。" };
   }
 
@@ -88,10 +88,9 @@ export async function addNewBacklogWithTask(params: {
   const backlog = createProductBacklogItem(boardId);
   backlog.title = backlogTitle;
   backlog.assignees = [params.assigneeName];
+  const config = getBoardConfig(boardId);
   const category =
-    BOARD_CONFIGS[boardId].backlogCategories[
-      BOARD_CONFIGS[boardId].backlogCategories.length - 1
-    ];
+    config.backlogCategories[config.backlogCategories.length - 1];
 
   const task = createTask(boardId, backlog.id, "todo", []);
   task.title = taskTitle;
@@ -133,6 +132,5 @@ export function parseBacklogOptionValue(
 ): { boardId: BoardId; parentIssueId: string } | null {
   const [boardId, parentIssueId] = raw.split("::");
   if (!boardId || !parentIssueId) return null;
-  if (!BOARD_ORDER.includes(boardId as BoardId)) return null;
-  return { boardId: boardId as BoardId, parentIssueId };
+  return { boardId, parentIssueId };
 }

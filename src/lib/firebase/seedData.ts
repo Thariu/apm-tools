@@ -42,9 +42,12 @@ export function getSeedReleaseBurnupByBoard(): Record<
   BoardId,
   ReturnType<typeof defaultReleaseBurnupBoardState>
 > {
-  return {
-    baseball_board: defaultReleaseBurnupBoardState(),
-    proposal_improvement: defaultReleaseBurnupBoardState(),
-    ad_hoc: defaultReleaseBurnupBoardState(),
-  };
+  const out = {} as Record<
+    BoardId,
+    ReturnType<typeof defaultReleaseBurnupBoardState>
+  >;
+  for (const boardId of BOARD_ORDER) {
+    out[boardId] = defaultReleaseBurnupBoardState();
+  }
+  return out;
 }

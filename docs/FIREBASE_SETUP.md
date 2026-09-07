@@ -10,15 +10,21 @@
 
 
 ## 2. Firestore を有効化
-1. 左メニュー **Build → Firestore Database**
-2. **データベースの作成**
-3. ロケーションを選択（例: `asia-northeast1`）
-4. セキュリティルールは一旦 **テストモード** で開始してもよい（後で 3 のルールに差し替え）
+公式手順（[Create a Cloud Firestore database](https://firebase.google.com/docs/firestore/quickstart#create) / [Manage databases](https://firebase.google.com/docs/firestore/manage-databases)）に準拠します。
+
+1. 左メニュー **Databases & Storage → Firestore**（日本語 UI: **データベースとストレージ → Firestore**）
+2. **データベースの作成**（Create database / Add database）
+3. **エディション** を選択 — このアプリでは **Standard**（Standard edition）を選び **次へ**
+4. データベース ID はそのまま（通常は `(default)`）で問題ない
+5. ロケーションを選択（例: `asia-northeast1`）→ **次へ**
+6. セキュリティルールの開始モードを選択 — 一旦 **テストモード** で開始してもよい（後で 3 のルールに差し替え）
+7. **作成**（Create）
 > Spark（無料）プランでは、プロジェクトあたり **無料枠の Firestore データベースは 1 つ** です。
+> メニューに「ビルド / Build」が無い場合は、上記の **Databases & Storage** を探してください（Console UI の更新によるものです）。
 
 
 ## 3. セキュリティルールを公開する
-1. Firestore → **ルール** タブ
+1. 左メニュー **Databases & Storage → Firestore** → **ルール**（Rules）タブ
 2. リポジトリの [`firestore.rules`](../firestore.rules) の内容を貼り付け
 3. **公開**
 認証を使わないため、**anon（未ログイン）でも読み書き可能** なルールです。API キーが漏れるとデータ改ざんのリスクがあります。
@@ -86,6 +92,8 @@ npm run dev
 planning_meta/
   app                 … { seeded: true }
   burndown_sprint     … 全ボード共通スプリント設定
+  boards_registry     … { boards: [{ id, label, order, archivedAt? }] }
+  board_labels        … レガシー表示名（registry へ同期）
 
 boards/{boardId}/
   product_backlog/{id}
@@ -95,7 +103,7 @@ boards/{boardId}/
   release_burnup/config
   finalized_sprints/{sprintTuesdayIso}
 ```
-`boardId`: `ad_hoc` | `baseball_board` | `proposal_improvement`
+`boardId`: 動的（初期シードは `ad_hoc` | `baseball_board` | `proposal_improvement`）。アーカイブ済みは UI 非表示。
 
 
 ## 無料プランの目安

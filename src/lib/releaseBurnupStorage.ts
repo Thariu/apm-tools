@@ -20,34 +20,14 @@ function defaultBoardState(): ReleaseBurnupBoardState {
 
 export function loadReleaseBurnupState(): ReleaseBurnupByBoard {
   if (typeof window === "undefined") {
-    return {
-      baseball_board: defaultBoardState(),
-      proposal_improvement: defaultBoardState(),
-      ad_hoc: defaultBoardState(),
-    };
+    return {};
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return {
-        baseball_board: defaultBoardState(),
-        proposal_improvement: defaultBoardState(),
-        ad_hoc: defaultBoardState(),
-      };
-    }
-    const parsed = JSON.parse(raw) as Partial<ReleaseBurnupByBoard>;
-    return {
-      baseball_board: parsed.baseball_board ?? defaultBoardState(),
-      proposal_improvement:
-        parsed.proposal_improvement ?? defaultBoardState(),
-      ad_hoc: parsed.ad_hoc ?? defaultBoardState(),
-    };
+    if (!raw) return {};
+    return JSON.parse(raw) as ReleaseBurnupByBoard;
   } catch {
-    return {
-      baseball_board: defaultBoardState(),
-      proposal_improvement: defaultBoardState(),
-      ad_hoc: defaultBoardState(),
-    };
+    return {};
   }
 }
 

@@ -101,13 +101,14 @@ export function trimFinalizedSprints(
   return sorted.length <= maxCount ? sorted : sorted.slice(-maxCount);
 }
 
-/** 今回の確定後、全ボードで同一スプリント週が確定済みになるか */
+/** 今回の確定後、指定ボード群で同一スプリント週が確定済みになるか */
 export function willAllBoardsFinalizeSprint(
   finalizedByBoard: Record<BoardId, FinalizedSprintBurnup[]>,
   activeBoardId: BoardId,
   sprintTuesdayIso: string,
+  boardIds: BoardId[] = BOARD_ORDER,
 ): boolean {
-  return BOARD_ORDER.every((boardId) => {
+  return boardIds.every((boardId) => {
     if (boardId === activeBoardId) return true;
     return finalizedByBoard[boardId]?.some(
       (s) => s.sprintTuesdayIso === sprintTuesdayIso,

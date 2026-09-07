@@ -1,11 +1,5 @@
-import { BOARD_ORDER } from "@/lib/boardConfig";
 import { toDateInputValue } from "@/lib/dateUtils";
 import type { BoardId, ProductBacklogItem, Task } from "@/lib/types";
-
-function boardRank(boardId: BoardId): number {
-  const index = BOARD_ORDER.indexOf(boardId);
-  return index === -1 ? BOARD_ORDER.length : index;
-}
 
 export type DailyTaskView = {
   task: Task;
@@ -13,9 +7,8 @@ export type DailyTaskView = {
   boardId: BoardId;
 };
 
-/** ボード順 → sortOrder → createdAt → id（レーンは使わない） */
 function compareDailyTaskViews(a: DailyTaskView, b: DailyTaskView): number {
-  const byBoard = boardRank(a.boardId) - boardRank(b.boardId);
+  const byBoard = a.boardId.localeCompare(b.boardId);
   if (byBoard !== 0) return byBoard;
 
   const oa = a.task.sortOrder ?? a.task.createdAt ?? 0;

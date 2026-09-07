@@ -12,9 +12,14 @@ export function burndownSprintDoc() {
   return doc(db(), "planning_meta", "burndown_sprint");
 }
 
-/** ボード表示名（都度案件 / 野球 / 提案業務改善 など） */
+/** ボード表示名（都度案件 / 野球 / 提案業務改善 など）※レガシー。新規は boards_registry を優先 */
 export function boardLabelsDoc() {
   return doc(db(), "planning_meta", "board_labels");
+}
+
+/** ボード（カテゴリ）レジストリ：追加・アーカイブ・復元・完全削除の正本 */
+export function boardsRegistryDoc() {
+  return doc(db(), "planning_meta", "boards_registry");
 }
 
 export function boardScheduleDoc(boardId: BoardId) {

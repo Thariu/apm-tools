@@ -16,12 +16,18 @@ import type { FinalizedSprintBurnup } from "../releaseBurnup";
 import {
   BOARD_ORDER,
   defaultBoardLabels,
+  defaultLegacyRegistryEntries,
+  labelsFromRegistry,
+  nextBoardOrder,
   parseBoardLabelsDoc,
+  parseBoardsRegistryDoc,
+  activeBoardIdsFromRegistry,
 } from "../boardConfig";
 import type { BurndownSprintState } from "../burndownSprintStorage";
 import type { ReleaseBurnupBoardState } from "../releaseBurnupStorage";
 import type {
   BoardId,
+  BoardRegistryEntry,
   ProductBacklogItem,
   RetroDraft,
   RetroFacilitation,
@@ -33,11 +39,13 @@ import type {
   TaskTemplateSet,
   WeekdayKey,
 } from "../types";
+import { createId } from "../id";
 import { getFirestoreDb } from "./client";
 import {
   burndownSprintToFirestore,
   docToProductBacklog,
   docToTask,
+  emptySchedule,
   productBacklogToDoc,
   releaseBurnupToFirestore,
   retroSessionToFirestore,
@@ -51,9 +59,11 @@ import {
   assigneeColorDoc,
   assigneeDirectoryDoc,
   boardLabelsDoc,
+  boardsRegistryDoc,
   boardReleaseBurnupDoc,
   boardScheduleDoc,
   burndownSnapshotDoc,
+  burndownSnapshotsCollection,
   burndownSprintDoc,
   finalizedSprintDoc,
   finalizedSprintsCollection,
@@ -62,6 +72,7 @@ import {
   productBacklogDoc,
   retroDoc,
   retroDraftDoc,
+  retroDraftsCollection,
   retroSessionDoc,
   retroSessionsCollection,
   retrosCollection,
@@ -79,6 +90,7 @@ import {
   getSeedTasks,
 } from "./seedData";
 import { DEFAULT_GOAL_TEXT_CANDIDATES } from "../goalTextCandidates";
+import { defaultReleaseBurnupBoardState } from "../planningDefaults";
 
 const META_SEEDED = "seeded";
 
@@ -116,16 +128,190 @@ export async function seedDatabaseIfEmpty(): Promise<void> {
   }
 
   for (const task of getSeedTasks()) {
-    batch.set(taskDoc(task.boardId, task.id), taskToFirestore(task));
+    // merge なしの set では deleteField() を使えない
+    batch.set(
+      taskDoc(task.boardId, task.id),
+      taskToFirestore(task, { clearMissingProgress: false }),
+    );
   }
 
   for (const text of DEFAULT_GOAL_TEXT_CANDIDATES) {
     batch.set(goalTextDirectoryDoc(text), { text }, { merge: true });
   }
 
+  batch.set(boardsRegistryDoc(), {
+    boards: defaultLegacyRegistryEntries(),
+    updatedAt: new Date().toISOString(),
+  });
+
   batch.set(appMetaDoc(), { [META_SEEDED]: true, seededAt: new Date().toISOString() });
 
   await batch.commit();
+}
+
+async function writeBoardsRegistry(
+  entries: BoardRegistryEntry[],
+): Promise<void> {
+  await setDoc(boardsRegistryDoc(), {
+    boards: entries,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/** レジストリが無ければレガシー3件＋board_labels から作成 */
+export async function ensureBoardsRegistry(): Promise<BoardRegistryEntry[]> {
+  const snap = await getDoc(boardsRegistryDoc());
+  if (snap.exists()) {
+    const data = snap.data() as Record<string, unknown>;
+    if (Array.isArray(data.boards) && data.boards.length > 0) {
+      return parseBoardsRegistryDoc(data);
+    }
+  }
+
+  const labelsSnap = await getDoc(boardLabelsDoc());
+  const labels = parseBoardLabelsDoc(
+    labelsSnap.exists()
+      ? (labelsSnap.data() as Record<string, unknown>)
+      : null,
+  );
+  const entries = defaultLegacyRegistryEntries().map((e) => ({
+    ...e,
+    label: labels[e.id] ?? e.label,
+  }));
+  await writeBoardsRegistry(entries);
+  return entries;
+}
+
+export async function fetchBoardsRegistry(): Promise<BoardRegistryEntry[]> {
+  return ensureBoardsRegistry();
+}
+
+export async function addBoardCategory(
+  label: string,
+): Promise<BoardRegistryEntry> {
+  const entries = await ensureBoardsRegistry();
+  const trimmed = label.trim() || "新しいカテゴリ";
+  const entry: BoardRegistryEntry = {
+    id: createId("board"),
+    label: trimmed,
+    order: nextBoardOrder(entries),
+  };
+  await writeBoardsRegistry([...entries, entry]);
+
+  await setDoc(boardScheduleDoc(entry.id), {
+    ...scheduleToFirestore(emptySchedule()),
+    sprintGoal: "",
+  });
+  const release = defaultReleaseBurnupBoardState();
+  await setDoc(
+    boardReleaseBurnupDoc(entry.id),
+    { releaseStartTuesdayIso: release.releaseStartTuesdayIso },
+    { merge: true },
+  );
+
+  return entry;
+}
+
+export async function archiveBoardCategory(boardId: BoardId): Promise<void> {
+  const entries = await ensureBoardsRegistry();
+  const active = activeBoardIdsFromRegistry(entries);
+  if (active.length <= 1 && active.includes(boardId)) {
+    throw new Error("最後のカテゴリはアーカイブできません。");
+  }
+  const now = new Date().toISOString();
+  const next = entries.map((e) =>
+    e.id === boardId ? { ...e, archivedAt: now } : e,
+  );
+  if (!next.some((e) => e.id === boardId)) {
+    throw new Error("カテゴリが見つかりません。");
+  }
+  await writeBoardsRegistry(next);
+}
+
+export async function restoreBoardCategory(boardId: BoardId): Promise<void> {
+  const entries = await ensureBoardsRegistry();
+  const next = entries.map((e) => {
+    if (e.id !== boardId) return e;
+    const { archivedAt: _a, ...rest } = e;
+    return rest;
+  });
+  if (!entries.some((e) => e.id === boardId && e.archivedAt)) {
+    throw new Error("アーカイブ済みカテゴリが見つかりません。");
+  }
+  await writeBoardsRegistry(next);
+}
+
+/** アクティブなカテゴリの表示順を更新（アーカイブ済みは order を維持） */
+export async function reorderBoardCategories(
+  orderedActiveIds: BoardId[],
+): Promise<void> {
+  const entries = await ensureBoardsRegistry();
+  const activeIds = activeBoardIdsFromRegistry(entries);
+  if (
+    orderedActiveIds.length !== activeIds.length ||
+    !orderedActiveIds.every((id) => activeIds.includes(id)) ||
+    new Set(orderedActiveIds).size !== orderedActiveIds.length
+  ) {
+    throw new Error("並び替え対象が不正です。");
+  }
+  const orderById = new Map(
+    orderedActiveIds.map((id, index) => [id, index] as const),
+  );
+  const next = entries.map((e) => {
+    if (e.archivedAt) return e;
+    const order = orderById.get(e.id);
+    return order === undefined ? e : { ...e, order };
+  });
+  await writeBoardsRegistry(next);
+}
+
+async function deleteCollectionDocs(
+  coll: ReturnType<typeof productBacklogCollection>,
+): Promise<void> {
+  const snap = await getDocs(coll);
+  if (snap.empty) return;
+  const db = getFirestoreDb();
+  let batch = writeBatch(db);
+  let count = 0;
+  for (const d of snap.docs) {
+    batch.delete(d.ref);
+    count += 1;
+    if (count >= 400) {
+      await batch.commit();
+      batch = writeBatch(db);
+      count = 0;
+    }
+  }
+  if (count > 0) await batch.commit();
+}
+
+/** ボード配下のサブコレクションを削除（完全削除用） */
+export async function deleteBoardData(boardId: BoardId): Promise<void> {
+  await Promise.all([
+    deleteCollectionDocs(productBacklogCollection(boardId)),
+    deleteCollectionDocs(tasksCollection(boardId)),
+    deleteCollectionDocs(burndownSnapshotsCollection(boardId)),
+    deleteCollectionDocs(finalizedSprintsCollection(boardId)),
+    deleteCollectionDocs(retrosCollection(boardId)),
+    deleteCollectionDocs(retroDraftsCollection(boardId)),
+  ]);
+  await deleteDoc(boardScheduleDoc(boardId)).catch(() => undefined);
+  await deleteDoc(boardReleaseBurnupDoc(boardId)).catch(() => undefined);
+}
+
+/** アーカイブ済みカテゴリを完全削除（データも消去） */
+export async function permanentlyDeleteBoardCategory(
+  boardId: BoardId,
+): Promise<void> {
+  const entries = await ensureBoardsRegistry();
+  const target = entries.find((e) => e.id === boardId);
+  if (!target) throw new Error("カテゴリが見つかりません。");
+  if (!target.archivedAt) {
+    throw new Error("完全削除はアーカイブ済みカテゴリのみ可能です。");
+  }
+  await deleteBoardData(boardId);
+  await writeBoardsRegistry(entries.filter((e) => e.id !== boardId));
+  await setDoc(boardLabelsDoc(), { [boardId]: deleteField() }, { merge: true });
 }
 
 export async function setTask(task: Task): Promise<void> {
@@ -418,10 +604,8 @@ export async function patchSprintGoal(
 }
 
 export async function fetchBoardLabels(): Promise<Record<BoardId, string>> {
-  const snap = await getDoc(boardLabelsDoc());
-  return parseBoardLabelsDoc(
-    snap.exists() ? (snap.data() as Record<string, unknown>) : null,
-  );
+  const entries = await ensureBoardsRegistry();
+  return labelsFromRegistry(entries);
 }
 
 export async function patchBoardLabel(
@@ -429,7 +613,19 @@ export async function patchBoardLabel(
   label: string,
 ): Promise<void> {
   const trimmed = label.trim();
-  const value = trimmed || defaultBoardLabels()[boardId];
+  const entries = await ensureBoardsRegistry();
+  const fallback =
+    entries.find((e) => e.id === boardId)?.label ||
+    defaultBoardLabels()[boardId] ||
+    "カテゴリ";
+  const value = trimmed || fallback;
+  const next = entries.map((e) =>
+    e.id === boardId ? { ...e, label: value } : e,
+  );
+  if (!entries.some((e) => e.id === boardId)) {
+    next.push({ id: boardId, label: value, order: nextBoardOrder(entries) });
+  }
+  await writeBoardsRegistry(next);
   await setDoc(boardLabelsDoc(), { [boardId]: value }, { merge: true });
 }
 
@@ -468,8 +664,10 @@ export async function upsertFinalizedSprint(
 export async function fetchAllProductBacklog(): Promise<
   Record<BoardId, ProductBacklogItem[]>
 > {
+  const entries = await ensureBoardsRegistry();
+  const boardIds = activeBoardIdsFromRegistry(entries);
   const out = {} as Record<BoardId, ProductBacklogItem[]>;
-  for (const boardId of BOARD_ORDER) {
+  for (const boardId of boardIds) {
     const q = query(
       productBacklogCollection(boardId),
       orderBy("sortOrder"),
@@ -483,8 +681,10 @@ export async function fetchAllProductBacklog(): Promise<
 }
 
 export async function fetchAllTasks(): Promise<Record<BoardId, Task[]>> {
+  const entries = await ensureBoardsRegistry();
+  const boardIds = activeBoardIdsFromRegistry(entries);
   const out = {} as Record<BoardId, Task[]>;
-  for (const boardId of BOARD_ORDER) {
+  for (const boardId of boardIds) {
     const snap = await getDocs(tasksCollection(boardId));
     out[boardId] = snap.docs.map((d) => {
       const data = d.data() as Task;

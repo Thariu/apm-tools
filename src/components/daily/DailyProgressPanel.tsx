@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { BOARD_ORDER, resolveBoardLabel } from "@/lib/boardConfig";
+import { resolveBoardLabel } from "@/lib/boardConfig";
 import {
   addNewBacklogWithTask,
   addTaskToExistingBacklog,
@@ -50,6 +50,7 @@ function formatCompletedAtJst(iso: string): string {
 type DailyProgressPanelProps = {
   tasks: Task[];
   productBacklogByBoard: Record<BoardId, ProductBacklogItem[]>;
+  activeBoardIds: BoardId[];
   boardLabelsByBoard: Record<BoardId, string>;
   assigneeCandidates: string[];
   initialAssignee?: string;
@@ -59,7 +60,6 @@ type DailyProgressPanelProps = {
 
 function groupTasksByBoard(tasks: Task[]): Record<BoardId, Task[]> {
   const out = {} as Record<BoardId, Task[]>;
-  for (const boardId of BOARD_ORDER) out[boardId] = [];
   for (const task of tasks) {
     if (!out[task.boardId]) out[task.boardId] = [];
     out[task.boardId].push(task);
@@ -77,6 +77,7 @@ function syncSlotToUrl(slot: DailyProgressSlot) {
 export function DailyProgressPanel({
   tasks,
   productBacklogByBoard,
+  activeBoardIds,
   boardLabelsByBoard,
   assigneeCandidates,
   initialAssignee,
@@ -95,13 +96,22 @@ export function DailyProgressPanel({
 
   const [existingBacklogValue, setExistingBacklogValue] = useState("");
   const [existingTaskTitle, setExistingTaskTitle] = useState("");
-  const [newBoardId, setNewBoardId] = useState<BoardId>("ad_hoc");
+  const [newBoardId, setNewBoardId] = useState<BoardId>(
+    () => activeBoardIds[0] ?? "ad_hoc",
+  );
   const [newBacklogTitle, setNewBacklogTitle] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
   /** 進捗ボタンの下書き（申告完了でボードへ反映） */
   const [draftProgress, setDraftProgress] = useState<
     Record<string, ProgressPercent>
   >({});
+
+  useEffect(() => {
+    if (activeBoardIds.length === 0) return;
+    if (!activeBoardIds.includes(newBoardId)) {
+      setNewBoardId(activeBoardIds[0]);
+    }
+  }, [activeBoardIds, newBoardId]);
 
   useEffect(() => {
     if (initialSlot) setSlot(initialSlot);
@@ -156,7 +166,7 @@ export function DailyProgressPanel({
 
   const backlogOptions = useMemo(() => {
     const out: { value: string; label: string; boardId: BoardId }[] = [];
-    for (const boardId of BOARD_ORDER) {
+    for (const boardId of activeBoardIds) {
       for (const item of productBacklogByBoard[boardId] ?? []) {
         out.push({
           value: backlogOptionValue(boardId, item.id),
@@ -166,15 +176,15 @@ export function DailyProgressPanel({
       }
     }
     return out;
-  }, [productBacklogByBoard]);
+  }, [productBacklogByBoard, activeBoardIds]);
 
   const backlogOptionsByBoard = useMemo(() => {
-    return BOARD_ORDER.map((boardId) => ({
+    return activeBoardIds.map((boardId) => ({
       boardId,
       label: resolveBoardLabel(boardId, boardLabelsByBoard),
       options: backlogOptions.filter((o) => o.boardId === boardId),
     })).filter((group) => group.options.length > 0);
-  }, [backlogOptions, boardLabelsByBoard]);
+  }, [backlogOptions, boardLabelsByBoard, activeBoardIds]);
 
   useEffect(() => {
     if (
@@ -558,7 +568,7 @@ export function DailyProgressPanel({
                 value={newBoardId}
                 onChange={(e) => setNewBoardId(e.target.value as BoardId)}
               >
-                {BOARD_ORDER.map((boardId) => (
+                {activeBoardIds.map((boardId) => (
                   <option key={boardId} value={boardId}>
                     {resolveBoardLabel(boardId, boardLabelsByBoard)}
                   </option>
