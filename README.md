@@ -13,7 +13,6 @@
 **[docs/SETUP.md](docs/SETUP.md)** … GitHub テンプレートで複製 → Firebase → Netlify
 
 - 共通 ID / パスワード認証: **[docs/AUTH_SETUP.md](docs/AUTH_SETUP.md)**
-- 今日の進捗（GAS 通知）: **[docs/DAILY_PROGRESS_SETUP.md](docs/DAILY_PROGRESS_SETUP.md)**
 
 ## ローカルで開発する
 
