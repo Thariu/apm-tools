@@ -12,7 +12,7 @@ export function burndownSprintDoc() {
   return doc(db(), "planning_meta", "burndown_sprint");
 }
 
-/** ボード表示名（都度案件 / 野球 / 提案業務改善 など）※レガシー。新規は boards_registry を優先 */
+/** ボード表示名（カテゴリ / カテゴリ2 / カテゴリ3 など）※レガシー。新規は boards_registry を優先 */
 export function boardLabelsDoc() {
   return doc(db(), "planning_meta", "board_labels");
 }

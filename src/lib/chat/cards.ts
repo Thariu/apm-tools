@@ -125,7 +125,7 @@ function declarationSections(
     });
 
     sections.push({
-      header: "追加タスク（新規 Backlog・都度案件）",
+      header: "追加タスク（新規 Backlog）",
       widgets: [
         {
           textInput: {

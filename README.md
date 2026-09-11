@@ -1,44 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# プランニングボード（apm-tools）
 
-## Firebase（データ永続化・Realtime）
+チームのタスクとスプリントを、ブラウザ上のボードで共有する社内向けアプリです。Backlog と ToDo / Doing / Done を並べ、担当・期間・進捗をリアルタイムに同期します。
 
-Firestore + `onSnapshot` で全データを同期します。初回セットアップは **[docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md)** を参照し、`.env.example` を `.env.local` にコピーして Web アプリの設定値を入れてください。
+## 使い方（公開後）
 
-## 認証（任意）
+サイトが開いたあとの操作は **[docs/USAGE.md](docs/USAGE.md)** を参照してください。
 
-共通 ID / パスワードでアプリ入口を保護する場合は **[docs/AUTH_SETUP.md](docs/AUTH_SETUP.md)** を参照し、`AUTH_USERNAME` / `AUTH_PASSWORD` / `AUTH_SESSION_SECRET` を `.env.local` に設定してください。
+## 初めて公開する
 
-## Getting Started
+パソコンにプログラムを入れなくても進められます。元リポジトリは [https://github.com/Thariu/apm-tools](https://github.com/Thariu/apm-tools) です。次を順に実施してください。
 
-First, run the development server:
+**[docs/SETUP.md](docs/SETUP.md)** … GitHub テンプレートで複製 → Firebase → Netlify
+
+- 共通 ID / パスワード認証: **[docs/AUTH_SETUP.md](docs/AUTH_SETUP.md)**
+- 今日の進捗（GAS 通知）: **[docs/DAILY_PROGRESS_SETUP.md](docs/DAILY_PROGRESS_SETUP.md)**
+
+## ローカルで開発する
 
 ```bash
+npm i
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+[http://localhost:3000](http://localhost:3000) を開きます。`.env.example` を `.env.local` にコピーし、[docs/SETUP.md](docs/SETUP.md) の手順 2-4 で控えた Firebase の 6 値を入れてください。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+認証を使う場合は `AUTH_USERNAME` / `AUTH_PASSWORD` / `AUTH_SESSION_SECRET` も `.env.local` に設定します（[docs/AUTH_SETUP.md](docs/AUTH_SETUP.md)）。

@@ -21,7 +21,7 @@ test.describe("Phase 3: ボードタブ切り替え", () => {
     );
   });
 
-  for (const boardName of ["野球", "提案業務改善"] as const) {
+  for (const boardName of ["カテゴリ2", "カテゴリ3"] as const) {
     test(`${boardName}タブに重大な a11y 違反がない`, async ({ page }) => {
       await switchToPlanningBoard(page, boardName);
       await page

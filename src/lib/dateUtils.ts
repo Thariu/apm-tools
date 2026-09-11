@@ -87,3 +87,62 @@ export function isTaskDateRangeInvalid(
   if (!startDate || !dueDate) return false;
   return startDate > dueDate;
 }
+
+export function parseIsoYearMonth(iso: string): { year: number; month: number } | null {
+  const date = parseDueDate(iso);
+  if (!date) return null;
+  return { year: date.getFullYear(), month: date.getMonth() + 1 };
+}
+
+/** 月初の YYYY-MM-DD。month は 1–12 */
+export function startOfMonthIso(year: number, month: number): string {
+  return toIsoDateString(new Date(year, month - 1, 1));
+}
+
+export function addCalendarMonths(year: number, month: number, delta: number): {
+  year: number;
+  month: number;
+} {
+  const d = new Date(year, month - 1 + delta, 1);
+  return { year: d.getFullYear(), month: d.getMonth() + 1 };
+}
+
+export type MonthGridCell = {
+  iso: string;
+  inMonth: boolean;
+};
+
+/** 日曜始まりの月グリッド（前後月のパディング含む） */
+export function monthGridCells(year: number, month: number): MonthGridCell[] {
+  const first = new Date(year, month - 1, 1);
+  const firstWeekday = first.getDay();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const cells: MonthGridCell[] = [];
+  for (let i = 0; i < firstWeekday; i++) {
+    const d = new Date(year, month - 1, 1 - (firstWeekday - i));
+    cells.push({ iso: toIsoDateString(d), inMonth: false });
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    cells.push({
+      iso: toIsoDateString(new Date(year, month - 1, day)),
+      inMonth: true,
+    });
+  }
+  while (cells.length % 7 !== 0) {
+    const last = parseDueDate(cells[cells.length - 1].iso);
+    const next = last
+      ? new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1)
+      : new Date(year, month, 1);
+    cells.push({ iso: toIsoDateString(next), inMonth: false });
+  }
+  return cells;
+}
+
+export function isIsoInInclusiveRange(
+  iso: string,
+  start?: string,
+  end?: string,
+): boolean {
+  if (!start || !end) return false;
+  return iso >= start && iso <= end;
+}

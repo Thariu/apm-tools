@@ -40,11 +40,10 @@ const TAB_PALETTE = [
 export const LEGACY_BOARD_CONFIGS: Record<string, BoardConfig> = {
   baseball_board: {
     id: "baseball_board",
-    label: "野球",
+    label: "カテゴリ2",
     activeTabClassName: "bg-yellow-400 text-gray-900 shadow-sm",
     backlogCategories: [
-      { id: "pro_baseball", label: "プロ野球", accentColor: "#3b82f6" },
-      { id: "other", label: "その他", accentColor: "#f59e0b" },
+      { id: "pro_baseball", label: "その他", accentColor: "#3b82f6" },
     ],
     issueTypeToCategory: {
       プロ野球: "pro_baseball",
@@ -53,7 +52,7 @@ export const LEGACY_BOARD_CONFIGS: Record<string, BoardConfig> = {
   },
   proposal_improvement: {
     id: "proposal_improvement",
-    label: "提案業務改善",
+    label: "カテゴリ3",
     activeTabClassName: "bg-green-800 text-white shadow-sm",
     backlogCategories: [
       { id: "default", label: "その他", accentColor: "#10b981" },
@@ -62,10 +61,10 @@ export const LEGACY_BOARD_CONFIGS: Record<string, BoardConfig> = {
   },
   ad_hoc: {
     id: "ad_hoc",
-    label: "都度案件",
+    label: "カテゴリ",
     activeTabClassName: "bg-blue-700 text-white shadow-sm",
     backlogCategories: [
-      { id: "ad_hoc_all", label: "都度案件", accentColor: "#ef4444" },
+      { id: "ad_hoc_all", label: "その他", accentColor: "#ef4444" },
     ],
     issueTypeToCategory: {
       公式: "ad_hoc_all",

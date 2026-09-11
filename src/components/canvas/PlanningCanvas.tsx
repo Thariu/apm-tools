@@ -638,9 +638,10 @@ export function PlanningCanvas({
         <div className="max-w-lg space-y-2">
           <p className="font-semibold">Firebase が未設定です</p>
           <p>
-            <code className="text-xs">docs/FIREBASE_SETUP.md</code>{" "}
-            の手順に従い、Web アプリを登録して{" "}
-            <code className="text-xs">.env.local</code> に設定値を追加してください。
+            <code className="text-xs">docs/SETUP.md</code>{" "}
+            の手順に従い、Firebase の設定値を Netlify（公開時）または{" "}
+            <code className="text-xs">.env.local</code>
+            （ローカル開発時）に入れてください。
           </p>
         </div>
       </div>

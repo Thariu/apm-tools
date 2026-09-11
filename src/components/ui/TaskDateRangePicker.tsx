@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
-  formatDueDateDisplay,
+  addCalendarMonths,
   formatTaskDateRange,
   getTaskDueStatus,
+  isIsoInInclusiveRange,
   isTaskDateRangeInvalid,
+  monthGridCells,
+  parseIsoYearMonth,
   TASK_DUE_STATUS_LABEL,
-  toDateInputValue,
   type TaskDueStatus,
 } from "@/lib/dateUtils";
+import { getJstIsoDate, getJstWeekday } from "@/lib/jstDate";
+import { isJapaneseHolidayIso } from "@/lib/japaneseHolidays";
 import type { TaskLane } from "@/lib/types";
 
 type TaskDateRangePickerProps = {
@@ -19,6 +24,8 @@ type TaskDateRangePickerProps = {
   onChange: (patch: { startDate?: string; dueDate?: string }) => void;
   onEditingChange?: (editing: boolean) => void;
 };
+
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
 function TaskDueStatusBadge({ status }: { status: TaskDueStatus }) {
   if (status === "none") return null;
@@ -36,53 +43,16 @@ function TaskDueStatusBadge({ status }: { status: TaskDueStatus }) {
   );
 }
 
-function DateField({
-  label,
-  value,
-  onChange,
-  inputRef,
-}: {
-  label: string;
-  value: string;
-  onChange: (isoDate: string) => void;
-  inputRef?: React.RefObject<HTMLInputElement | null>;
-}) {
-  const localRef = useRef<HTMLInputElement>(null);
-  const ref = inputRef ?? localRef;
-  const display = formatDueDateDisplay(value) || "—";
-
-  const openPicker = () => {
-    const el = ref.current;
-    if (!el) return;
-    el.focus();
-    if (typeof el.showPicker === "function") {
-      void el.showPicker();
-    } else {
-      el.click();
-    }
-  };
-
+function initialViewMonth(startDate?: string, dueDate?: string) {
   return (
-    <label
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openPicker();
-      }}
-      className="relative inline-flex min-h-6 cursor-pointer select-none items-center gap-1 rounded px-1.5 py-0.5 text-[10px] hover:bg-gray-100"
-    >
-      <span className="shrink-0 font-medium text-gray-500">{label}</span>
-      <input
-        ref={ref}
-        type="date"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onClick={(e) => e.stopPropagation()}
-        className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
-        aria-label={label}
-      />
-    </label>
+    parseIsoYearMonth(startDate ?? "") ??
+    parseIsoYearMonth(dueDate ?? "") ??
+    parseIsoYearMonth(getJstIsoDate()) ?? { year: 2026, month: 9 }
   );
+}
+
+function orderedRange(a: string, b: string): { start: string; due: string } {
+  return a <= b ? { start: a, due: b } : { start: b, due: a };
 }
 
 export function TaskDateRangePicker({
@@ -93,8 +63,12 @@ export function TaskDateRangePicker({
   onEditingChange,
 }: TaskDateRangePickerProps) {
   const [editing, setEditing] = useState(false);
+  const [draftStart, setDraftStart] = useState<string | null>(null);
+  const [draftDue, setDraftDue] = useState<string | null>(null);
+  const [view, setView] = useState(() => initialViewMonth(startDate, dueDate));
+  const [panelPos, setPanelPos] = useState({ top: 0, left: 0 });
   const rootRef = useRef<HTMLDivElement>(null);
-  const startInputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
   const display = formatTaskDateRange(startDate, dueDate);
   const invalid = isTaskDateRangeInvalid(startDate, dueDate);
@@ -102,24 +76,77 @@ export function TaskDateRangePicker({
   const dueStatus = lane ? getTaskDueStatus(dueDate, lane) : "none";
   const dueStatusLabel =
     dueStatus === "none" ? null : TASK_DUE_STATUS_LABEL[dueStatus];
+  const todayIso = getJstIsoDate();
+  const cells = monthGridCells(view.year, view.month);
+  const canConfirm = Boolean(draftStart && draftDue);
 
   const setEditingState = (next: boolean) => {
     setEditing(next);
     onEditingChange?.(next);
   };
 
-  useEffect(() => {
-    if (editing) startInputRef.current?.focus();
-  }, [editing]);
+  const resetDraft = () => {
+    setDraftStart(null);
+    setDraftDue(null);
+  };
+
+  const closePicker = () => {
+    resetDraft();
+    setEditingState(false);
+  };
+
+  const confirmDraft = () => {
+    if (!draftStart || !draftDue) return;
+    onChange({
+      startDate: draftStart,
+      dueDate: draftDue,
+    });
+    closePicker();
+  };
+
+  useLayoutEffect(() => {
+    if (!editing) return;
+    const updatePos = () => {
+      const trigger = rootRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const panelWidth = 232;
+      const panelHeight = panelRef.current?.offsetHeight ?? 280;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const top =
+        spaceBelow >= panelHeight + 8
+          ? rect.bottom + 4
+          : Math.max(8, rect.top - panelHeight - 4);
+      const left = Math.min(
+        Math.max(8, rect.left),
+        window.innerWidth - panelWidth - 8,
+      );
+      setPanelPos({ top, left });
+    };
+    updatePos();
+    window.addEventListener("resize", updatePos);
+    window.addEventListener("scroll", updatePos, true);
+    return () => {
+      window.removeEventListener("resize", updatePos);
+      window.removeEventListener("scroll", updatePos, true);
+    };
+  }, [editing, view, draftStart, draftDue]);
 
   useEffect(() => {
     if (!editing) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (rootRef.current?.contains(e.target as Node)) return;
-      setEditingState(false);
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      resetDraft();
+      setEditing(false);
+      onEditingChange?.(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setEditingState(false);
+      if (e.key !== "Escape") return;
+      resetDraft();
+      setEditing(false);
+      onEditingChange?.(false);
     };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -127,45 +154,28 @@ export function TaskDateRangePicker({
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [editing]);
+  }, [editing, onEditingChange]);
 
-  if (editing) {
-    return (
-      <div
-        ref={rootRef}
-        id={panelId}
-        className="max-w-max space-y-1 rounded border border-blue-200 bg-blue-50/50 px-2 py-1.5"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <DateField
-            label="着手"
-            value={toDateInputValue(startDate)}
-            onChange={(iso) => onChange({ startDate: iso, dueDate })}
-            inputRef={startInputRef}
-          />
-          <span className="text-[10px] text-gray-400" aria-hidden>
-            ～
-          </span>
-          <DateField
-            label="完了"
-            value={toDateInputValue(dueDate)}
-            onChange={(iso) => onChange({ startDate, dueDate: iso })}
-          />
-        </div>
-        {invalid && (
-          <p className="text-[10px] font-medium text-amber-700" role="alert">
-            着手日が期限より後です
-          </p>
-        )}
-        {dueStatusLabel && (
-          <p className="flex items-center gap-1">
-            <TaskDueStatusBadge status={dueStatus} />
-          </p>
-        )}
-      </div>
-    );
-  }
+  const openPicker = () => {
+    resetDraft();
+    setView(initialViewMonth(startDate, dueDate));
+    setEditingState(true);
+  };
+
+  const selectDay = (iso: string) => {
+    if (!draftStart || !draftDue || draftStart !== draftDue) {
+      setDraftStart(iso);
+      setDraftDue(iso);
+      return;
+    }
+    if (iso === draftStart) return;
+    const { start, due } = orderedRange(draftStart, iso);
+    setDraftStart(start);
+    setDraftDue(due);
+  };
+
+  const highlightStart = draftStart ?? startDate;
+  const highlightDue = draftDue ?? dueDate;
 
   const dateButtonClass = (() => {
     if (invalid) return "ring-1 ring-amber-400";
@@ -175,14 +185,134 @@ export function TaskDateRangePicker({
     return "italic text-gray-400";
   })();
 
+  const panel =
+    editing && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            ref={panelRef}
+            id={panelId}
+            role="dialog"
+            aria-label="対応期間を選択"
+            className="fixed z-[80] w-[232px] rounded border border-blue-200 bg-white p-2 shadow-lg"
+            style={{ top: panelPos.top, left: panelPos.left }}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <div className="mb-1 flex items-center justify-between">
+              <button
+                type="button"
+                className="rounded px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-100"
+                aria-label="前の月"
+                onClick={() => setView((v) => addCalendarMonths(v.year, v.month, -1))}
+              >
+                ‹
+              </button>
+              <p className="text-[11px] font-medium text-gray-800">
+                {view.year}年{view.month}月
+              </p>
+              <button
+                type="button"
+                className="rounded px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-100"
+                aria-label="次の月"
+                onClick={() => setView((v) => addCalendarMonths(v.year, v.month, 1))}
+              >
+                ›
+              </button>
+            </div>
+            <div className="grid grid-cols-7 gap-px text-center">
+              {WEEKDAY_LABELS.map((label, index) => (
+                <span
+                  key={label}
+                  className={[
+                    "text-[9px] font-medium",
+                    index === 0 ? "text-red-500" : "text-gray-500",
+                  ].join(" ")}
+                >
+                  {label}
+                </span>
+              ))}
+              {cells.map((cell) => {
+                const inRange = isIsoInInclusiveRange(
+                  cell.iso,
+                  highlightStart,
+                  highlightDue,
+                );
+                const isStart = cell.iso === highlightStart;
+                const isDue = cell.iso === highlightDue;
+                const isToday = cell.iso === todayIso;
+                const holiday = isJapaneseHolidayIso(cell.iso);
+                const sunday = getJstWeekday(cell.iso) === 0;
+                const selected = isStart || isDue;
+                return (
+                  <button
+                    key={cell.iso}
+                    type="button"
+                    onClick={() => selectDay(cell.iso)}
+                    aria-label={cell.iso}
+                    aria-pressed={selected}
+                    className={[
+                      "h-7 rounded text-[11px] leading-none",
+                      cell.inMonth ? "" : "opacity-40",
+                      selected
+                        ? "bg-blue-600 font-semibold text-white"
+                        : inRange
+                          ? "bg-blue-100 text-blue-900"
+                          : "hover:bg-gray-100",
+                      !selected && (sunday || holiday) ? "text-red-600" : "",
+                      isToday && !selected ? "ring-1 ring-blue-400" : "",
+                    ].join(" ")}
+                  >
+                    {Number(cell.iso.slice(8, 10))}
+                  </button>
+                );
+              })}
+            </div>
+            {draftStart && draftDue && (
+              <p className="mt-1.5 text-[10px] text-gray-600">
+                {formatTaskDateRange(draftStart, draftDue)}
+              </p>
+            )}
+            <div className="mt-2 flex justify-end gap-1">
+              <button
+                type="button"
+                onClick={closePicker}
+                className="rounded px-2 py-0.5 text-[10px] text-gray-600 hover:bg-gray-100"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={confirmDraft}
+                disabled={!canConfirm}
+                className={[
+                  "rounded px-2 py-0.5 text-[10px] font-medium",
+                  canConfirm
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "cursor-not-allowed bg-gray-200 text-gray-400",
+                ].join(" ")}
+              >
+                確定
+              </button>
+            </div>
+            {invalid && (
+              <p className="mt-1 text-[10px] font-medium text-amber-700" role="alert">
+                着手日が期限より後です
+              </p>
+            )}
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
-    <div ref={rootRef} className="inline-flex flex-col gap-0.5">
+    <div ref={rootRef} className="relative inline-flex flex-col gap-0.5">
       <div className="inline-flex items-center gap-0.5">
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            setEditingState(true);
+            if (editing) closePicker();
+            else openPicker();
           }}
           className={[
             "inline-flex min-h-6 items-center gap-1 rounded px-2 py-1 text-[10px] hover:bg-gray-100",
@@ -195,7 +325,7 @@ export function TaskDateRangePicker({
                 : `対応期間 ${display}`
               : "対応期間を入力"
           }
-          aria-expanded={false}
+          aria-expanded={editing}
           aria-controls={panelId}
           title={invalid ? "着手日が期限より後です" : dueStatusLabel ?? undefined}
         >
@@ -207,6 +337,7 @@ export function TaskDateRangePicker({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              resetDraft();
               onChange({ startDate: "", dueDate: "" });
             }}
             className="min-h-6 rounded px-1 text-[10px] text-gray-400 hover:bg-gray-100 hover:text-gray-600"
@@ -227,6 +358,7 @@ export function TaskDateRangePicker({
           着手日が期限より後です
         </p>
       )}
+      {panel}
     </div>
   );
 }
